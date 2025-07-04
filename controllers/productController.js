@@ -7,6 +7,7 @@ const Category = require('../models/categoryModel');
 const subCategory = require('../models/subCategoryModel');
 const { ObjectId } = require('mongoose').Types;
 
+
 // Get All Products
 exports.getAllProducts = asyncErrorHandler(async (req, res, next) => {
     try {
@@ -205,7 +206,6 @@ exports.createProduct = asyncErrorHandler(async (req, res, next) => {
 // create Category ---ADMIN
 exports.createCategory = asyncErrorHandler(async (req, res, next) => {
     try {
-
         const existingCategory = await Category.findOne({ name: req.body.name.toLowerCase() });
         if (existingCategory) {
             return res.status(400).json({
@@ -213,12 +213,16 @@ exports.createCategory = asyncErrorHandler(async (req, res, next) => {
                 message: "Category with this name already exists",
             });
         }
+        console.log('here')
         let imageLink = [];
-        if (req.body.image) {
-            const result = await cloudinary.v2.uploader.upload(req.body.image, {
+        if (req.files.image) {
+            console.log('here1', req.files.image)
+            const file = req.files.image;
+            const mimeType = file.mimetype;
+            const base64Image = `data:${mimeType};base64,${file.data.toString('base64')}`;
+            const result = await cloudinary.v2.uploader.upload(base64Image, {
                 folder: "category",
-            });
-
+            })
             imageLink.push({
                 public_id: result.public_id,
                 url: result.secure_url
@@ -228,6 +232,7 @@ exports.createCategory = asyncErrorHandler(async (req, res, next) => {
             ...req.body,
             image: imageLink.length > 0 ? imageLink : undefined,
         };
+
         // Create the category
         const category = await Category.create(categoryData);
 
@@ -668,7 +673,7 @@ exports.updateProduct = asyncErrorHandler(async (req, res, next) => {
                 const result = await cloudinary.v2.uploader.upload(images[i], {
                     folder: "products",
                 });
-                
+
 
                 imagesLink.push({
                     public_id: result.public_id,

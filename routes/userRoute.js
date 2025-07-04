@@ -60,28 +60,28 @@ router.route('/user/visitors').get(visitorsLists)
 
 
 // department
-// router.route('/admin/department').post(createDepartment);
-// router.route('/admin/department/update').put(updateDepartment);
-// router.route('/admin/department/status').post(updateDepartmentStatus)
-// router.route('/admin/department/all-department').get(isAuthenticatedUser, getAllDepartments);
-// router.route('/admin/department/get-department/:id').get(getSingleDepartment);
-// router.route('/admin/department/get-sub-department/:id').get(departmentWiseSubDepartment);
+router.route('/admin/department').post(createDepartment);
+router.route('/admin/department/update').put(updateDepartment);
+router.route('/admin/department/status').post(updateDepartmentStatus)
+router.route('/admin/department/all-department').get(isAuthenticatedUser, getAllDepartments);
+router.route('/admin/department/get-department/:id').get(getSingleDepartment);
+router.route('/admin/department/get-sub-department/:id').get(departmentWiseSubDepartment);
 
 // sub-department
-// router.route('/admin/sub-department').post(createSubDepartment)
-// router.route('/admin/sub-department').get(getAllSubDepartments)
-// router.route('/admin/sub-department/status').post(updateSubDepartmentStatus)
-// router.route('/admin/sub-department/update').put(updateSubDepartment)
-// router.route('/admin/sub-department/:id').get(getSingleSubDepartment)
+router.route('/admin/sub-department').post(createSubDepartment)
+router.route('/admin/sub-department').get(getAllSubDepartments)
+router.route('/admin/sub-department/status').post(updateSubDepartmentStatus)
+router.route('/admin/sub-department/update').put(updateSubDepartment)
+router.route('/admin/sub-department/:id').get(getSingleSubDepartment)
 
 
 // department user
-// router.route('/admin/dept/login').post(departmentUserLogin);
-// router.route('/admin/dept/create').post(isAuthenticatedUser, authorizeRoles("admin"), createDepartmentUser);
-// router.route('/admin/dept/all-users').get(isAuthenticatedUser, authorizeRoles("admin"), getAllDepartmentUsers);
-// router.route('/admin/dept/status').post(isAuthenticatedUser, authorizeRoles("admin"), updateDepartmentUsersStatus);
-// router.route('/admin/dept/update').post(isAuthenticatedUser, authorizeRoles("admin"), updateDepartmentUser);
-// router.route('/admin/dept/:id').get(isAuthenticatedUser, authorizeRoles("admin"), getSingleDepartmentUser);
+router.route('/admin/dept/login').post(departmentUserLogin);
+router.route('/admin/dept/create').post(isAuthenticatedUser, authorizeRoles("admin"), createDepartmentUser);
+router.route('/admin/dept/all-users').get(isAuthenticatedUser, authorizeRoles("admin"), getAllDepartmentUsers);
+router.route('/admin/dept/status').post(isAuthenticatedUser, authorizeRoles("admin"), updateDepartmentUsersStatus);
+router.route('/admin/dept/update').post(isAuthenticatedUser, authorizeRoles("admin"), updateDepartmentUser);
+router.route('/admin/dept/:id').get(isAuthenticatedUser, authorizeRoles("admin"), getSingleDepartmentUser);
 
 
 

@@ -29,7 +29,7 @@ router.route('/product/sub-category/:id').get(getSubcategoryDetails);
 
 // router.route('/admin/products').get(isAuthenticatedUser, authorizeRoles("admin"), getAdminProducts);
 router.route('/admin/products').get(getAdminProducts);
-router.route('/admin/product/new').post(isAuthenticatedUser, authorizeRoles("admin"),createProduct);
+router.route('/admin/product/new').post(isAuthenticatedUser, authorizeRoles("admin"), createProduct);
 
 router.route('/admin/product/update').post(isAuthenticatedUser, authorizeRoles("admin"), updateProduct)
 // .put(updateProduct)
