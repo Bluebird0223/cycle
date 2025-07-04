@@ -293,6 +293,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: "user",
     },
+    isActive: {
+        type: Boolean,
+        default: true
+
+    },
     createdAt: {
         type: Date,
         default: Date.now,
@@ -332,5 +337,4 @@ userSchema.methods.getResetPasswordToken = async function () {
     return resetToken;
 }
 
-// export const User = mongoose.model('User',userSchema)
 module.exports = mongoose.model('User', userSchema);

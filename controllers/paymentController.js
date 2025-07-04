@@ -58,7 +58,6 @@ exports.processPayment = asyncErrorHandler(async (req, res, next) => {
         });
 
     }).catch(function (error) {
-        console.log(error);
         res.status(500).json({
             success: false,
             message: 'Error generating Paytm checksum',
@@ -70,14 +69,11 @@ exports.processPayment = asyncErrorHandler(async (req, res, next) => {
 // Paytm Callback
 exports.paytmResponse = (req, res, next) => {
 
-    // console.log(req.body);
-
     let paytmChecksum = req.body.CHECKSUMHASH;
     delete req.body.CHECKSUMHASH;
 
     let isVerifySignature = paytm.verifySignature(req.body, process.env.PAYTM_MERCHANT_KEY, paytmChecksum);
     if (isVerifySignature) {
-        // console.log("Checksum Matched");
 
         var paytmParams = {};
 

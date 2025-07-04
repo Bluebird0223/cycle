@@ -7,18 +7,18 @@ const categorySchema = new mongoose.Schema({
         trim: true,
         set: value => value.toLowerCase()
     },
-    // image: [
-    //     {
-    //         public_id: {
-    //             type: String,
-    //             required: true
-    //         },
-    //         url: {
-    //             type: String,
-    //             required: true
-    //         }
-    //     }
-    // ],
+    image: [
+        {
+            public_id: {
+                type: String,
+                required: true
+            },
+            url: {
+                type: String,
+                required: true
+            }
+        }
+    ],
     isActive: {
         type: Boolean,
         default: true

@@ -1,36 +1,35 @@
 const ErrorHandler = require("../utils/errorHandler");
 
 module.exports = (err, req, res, next) => {
-    // Default fallback
-    let statusCode = err.statusCode || 500;
-    let message = err.message || "Internal Server Error";
+    err.statusCode = err.statusCode || 500;
+    err.message = err.message || "Internal Server Error";
 
-    // MongoDB ObjectId error
+    // mongodb id error
     if (err.name === "CastError") {
-        message = `Resource Not Found. Invalid: ${err.path}`;
-        statusCode = 400;
+        const message = `Resource Not Found. Invalid: ${err.path}`;
+        err = new ErrorHandler(message, 400)
     }
 
-    // Duplicate key error
+    // mongoose duplicate key error
     if (err.code === 11000) {
-        message = `Duplicate ${Object.keys(err.keyValue)} entered`;
-        statusCode = 400;
+        const message = `Duplicate ${Object.keys(err.keyValue)} entered`;
+        err = new ErrorHandler(message, 400);
     }
 
-    // Invalid JWT
-    if (err.name === "JsonWebTokenError") {
-        message = 'JWT is invalid';
-        statusCode = 400;
+    // wrong jwt error
+    if (err.code === "JsonWebTokenError") {
+        const message = 'JWT Error';
+        err = new ErrorHandler(message, 400);
     }
 
-    // JWT Expired
-    if (err.name === "TokenExpiredError") {
-        message = 'JWT has expired';
-        statusCode = 401;
+    // jwt expire error
+    if (err.code === "JsonWebTokenError") {
+        const message = 'JWT is Expired';
+        err = new ErrorHandler(message, 400);
     }
 
-    res.status(statusCode).json({
+    res.status(err.statusCode).json({
         success: false,
-        message: message,
+        message: err.message,
     });
-};
+}
