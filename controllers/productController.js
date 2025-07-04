@@ -431,6 +431,8 @@ exports.getCategoryWiseProducts = asyncErrorHandler(async (req, res, next) => {
 
 exports.deleteCategory = asyncErrorHandler(async (req, res, next) => {
     const category = await Category.findById(req.params.id);
+
+    console.log(category)
     if (!category) {
         return next(new ErrorHandler("Category Not Found", 404));
     }
