@@ -4,36 +4,36 @@ const { isAuthenticatedUser, authorizeRoles } = require('../middlewares/auth');
 
 const router = express.Router();
 
-router.route('/products').post(getAllProducts);
-router.route('/products/all').get(getProducts);
-
 
 router.route('/product/category/new').post(createCategory)
 router.route('/product/category').get(getCategory)
 router.route('/product/category/update').put(updateCategory)
-router.route('/product/category/delete').delete(deleteCategory)
+router.route('/product/category/delete/:id').delete(deleteCategory)
 router.route('/product/category/toggle-active').put(toggleCategory)
-router.route('/product/category/sub-categories').get(getCategoryWiseSubcategory);
-router.route('/product/category/sarees').post(getCategoryAndSubcategoryWiseProducts);
+// router.route('/product/category/sub-categories').get(getCategoryWiseSubcategory);
+// router.route('/product/category/sarees').post(getCategoryAndSubcategoryWiseProducts);
 router.route('/product/category/products').post(getCategoryWiseProducts);
 router.route('/product/category/:id').get(getCategoryDetails);
 
 
-router.route('/product/sub-category/new').post(createSubCategory)
-router.route('/product/sub-category').get(getSubCategory)
-router.route('/product/sub-category/update').put(updateSubCategory)
-router.route('/product/sub-category/delete').put(updateSubCategory)
-router.route('/product/sub-category/toggle-active').put(toggleSubCategory)
-router.route('/product/sub-category/:id').get(getSubcategoryDetails);
+// router.route('/product/sub-category/new').post(createSubCategory)
+// router.route('/product/sub-category').get(getSubCategory)
+// router.route('/product/sub-category/update').put(updateSubCategory)
+// router.route('/product/sub-category/delete').put(updateSubCategory)
+// router.route('/product/sub-category/toggle-active').put(toggleSubCategory)
+// router.route('/product/sub-category/:id').get(getSubcategoryDetails);
 
 
+
+router.route('/products').get(getAllProducts);
+router.route('/products/all').get(getProducts);
 // router.route('/admin/products').get(isAuthenticatedUser, authorizeRoles("admin"), getAdminProducts);
 router.route('/admin/products').get(getAdminProducts);
 router.route('/admin/product/new').post(isAuthenticatedUser, authorizeRoles("admin"), createProduct);
 
-router.route('/admin/product/update').post(isAuthenticatedUser, authorizeRoles("admin"), updateProduct)
+router.route('/admin/product/update/:id').put(isAuthenticatedUser, authorizeRoles("admin"), updateProduct)
 // .put(updateProduct)
-// .delete(isAuthenticatedUser, authorizeRoles("admin"), deleteProduct);
+router.route('/admin/product/:id').delete(isAuthenticatedUser, authorizeRoles("admin"), deleteProduct);
 
 router.route('/product/:id').get(getProductDetails);
 

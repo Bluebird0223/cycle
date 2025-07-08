@@ -10,6 +10,11 @@ const productSchema = new mongoose.Schema({
         type: String,
         required: [true, "Please enter product description"]
     },
+    shortName: {
+        type: String,
+        required: false,
+        default: ''
+    },
     highlights: [
         {
             type: String,
@@ -69,11 +74,11 @@ const productSchema = new mongoose.Schema({
         ref: "Category",
         required: true
     },
-    subcategory: {
-        type: mongoose.Schema.ObjectId,
-        ref: "SubCategory",
-        required: true
-    },
+    // subcategory: {
+    //     type: mongoose.Schema.ObjectId,
+    //     ref: "SubCategory",
+    //     required: true
+    // },
     stock: {
         type: Number,
         required: [true, "Please enter product stock"],

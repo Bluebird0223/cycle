@@ -4,14 +4,13 @@ const asyncErrorHandler = require('../middlewares/asyncErrorHandler');
 const ErrorHandler = require('../utils/errorHandler');
 const cloudinary = require('cloudinary');
 const Category = require('../models/categoryModel');
-const subCategory = require('../models/subCategoryModel');
 const { ObjectId } = require('mongoose').Types;
 
 
 // Get All Products
 exports.getAllProducts = asyncErrorHandler(async (req, res, next) => {
     try {
-        const { categoryId, subCategoryId, currentPage = 1, keyword, price, ratings, limit = 12 } = req.body;
+        const { categoryId, currentPage = 1, keyword, price, ratings, limit = 12 } = req.query;
 
         let filter = {};
 
@@ -25,16 +24,19 @@ exports.getAllProducts = asyncErrorHandler(async (req, res, next) => {
             filter.category = new ObjectId(categoryId);
         }
 
-        if (subCategoryId) {
-            filter.subcategory = new ObjectId(subCategoryId);
+        if (typeof price === 'object') {
+            const priceFilter = {};
+            if (price.gte) priceFilter.$gte = Number(price.gte);
+            if (price.lte) priceFilter.$lte = Number(price.lte);
+            if (Object.keys(priceFilter).length > 0) {
+                filter.price = priceFilter;
+            }
         }
 
-        if (price && price.length === 2) {
-            filter.price = { $gte: price[0], $lte: price[1] };
-        }
-
-        if (ratings) {
-            filter.ratings = { $gte: ratings };
+        if (typeof ratings === 'object' && ratings.gte) {
+            filter.ratings = { $gte: Number(ratings.gte) };
+        } else if (!isNaN(ratings)) {
+            filter.ratings = { $gte: Number(ratings) };
         }
 
         const products = await Product.find(filter)
@@ -73,7 +75,7 @@ exports.getProducts = asyncErrorHandler(async (req, res, next) => {
 // Get Product Details
 exports.getProductDetails = asyncErrorHandler(async (req, res, next) => {
 
-    const product = await Product.findById(req.params.id).populate([{ path: "category", select: "name" }, { path: "subcategory", select: "name" }])
+    const product = await Product.findById(req.params.id).populate([{ path: "category", select: "name" }])
 
     if (!product) {
         return next(new ErrorHandler("Product Not Found", 404));
@@ -87,7 +89,7 @@ exports.getProductDetails = asyncErrorHandler(async (req, res, next) => {
 
 // Get All Products ---ADMIN
 exports.getAdminProducts = asyncErrorHandler(async (req, res, next) => {
-    const products = await Product.find().populate([{ path: "category", select: "name" }, { path: "subcategory", select: "name" }])
+    const products = await Product.find().populate([{ path: "category", select: "name" }])
 
     res.status(200).json({
         success: true,
@@ -95,62 +97,29 @@ exports.getAdminProducts = asyncErrorHandler(async (req, res, next) => {
     });
 });
 
-// Create Product ---ADMIN
-// exports.createProduct = asyncErrorHandler(async (req, res, next) => {
-//     let images = [];
-//     if (typeof req.body.images === "string") {
-//         images.push(req.body.images);
-//     } else {
-//         images = req.body.images;
-//     }
-//     const imagesLink = [];
-//     for (let i = 0; i < images.length; i++) {
-//         const result = await cloudinary.v2.uploader.upload(images[i], {
-//             folder: "products",
-//         });
-//         imagesLink.push({
-//             public_id: result.public_id,
-//             url: result.secure_url,
-//         });
-//     }
-//     const result = await cloudinary.v2.uploader.upload(req.body.logo, {
-//         folder: "brands",
-//     });
-//     const brandLogo = {
-//         public_id: result.public_id,
-//         url: result.secure_url,
-//     };
-//     req.body.brand = {
-//         name: req.body.brandname,
-//         logo: brandLogo
-//     }
-//     req.body.images = imagesLink;
-//     req.body.user = req.user.id;
-//     let specs = [];
-//     req.body.specifications.forEach((s) => {
-//         specs.push(JSON.parse(s))
-//     });
-//     req.body.specifications = specs;
-//     const product = await Product.create(req.body);
-//     res.status(201).json({
-//         success: true,
-//         product
-//     });
-// });
-
 exports.createProduct = asyncErrorHandler(async (req, res, next) => {
     try {
+        // console.log('body', req.body, req.files)
+
+        // Handle image uploads
         let images = [];
-        if (typeof req.body.images === "string") {
-            images.push(req.body.images);
-        } else if (Array.isArray(req.body.images)) {
-            images = req.body.images;
+        if (req.files && req.files.images) {
+            if (Array.isArray(req.files.images)) {
+                images = req.files.images;
+            } else {
+                // Single image case
+                images.push(req.files.images);
+            }
         }
 
         const imagesLink = [];
 
         for (let i = 0; i < images?.length; i++) {
-            const result = await cloudinary.v2.uploader.upload(images[i], {
+            const file = images[i];
+            const mimeType = file.mimetype;
+            const base64Image = `data:${mimeType};base64,${file.data.toString('base64')}`;
+
+            const result = await cloudinary.v2.uploader.upload(base64Image, {
                 folder: "products",
             });
 
@@ -160,47 +129,100 @@ exports.createProduct = asyncErrorHandler(async (req, res, next) => {
             });
         }
 
+        // Handle thumbnail upload
+        let brandLogo = null;
+        if (req.files && req.files.thumbnail) {
+            const thumbnailFile = req.files.thumbnail;
+            const mimeType = thumbnailFile.mimetype;
+            const base64Thumbnail = `data:${mimeType};base64,${thumbnailFile.data.toString('base64')}`;
 
+            const result = await cloudinary.v2.uploader.upload(base64Thumbnail, {
+                folder: "thumbnail",
+            });
 
-        const result = await cloudinary?.v2?.uploader?.upload(req?.body?.Thumbnail, {
-            folder: "thumbnail",
-        });
+            brandLogo = {
+                public_id: result.public_id,
+                url: result.secure_url,
+            };
+        }
 
-        const brandLogo = {
-            public_id: result.public_id,
-            url: result.secure_url,
-        };
+        // Set brand information
+        if (brandLogo) {
+            req.body.brand = {
+                name: req.body.brandname,
+                logo: brandLogo,
+            };
+        }
 
-        req.body.brand = {
-            name: req.body.brandname,
-            logo: brandLogo,
-        };
+        // Set images and user
         req.body.images = imagesLink;
         req.body.user = req.user.id;
-        // req.body.user = req.body.user
 
+        // Parse specifications
         let specs = [];
-        req.body.specifications.forEach((s) => {
-            specs.push(JSON.parse(s));
-        });
+        if (req.body.specifications) {
+            if (typeof req.body.specifications === 'string') {
+                try {
+                    const parsedSpecs = JSON.parse(req.body.specifications);
+                    if (Array.isArray(parsedSpecs)) {
+                        specs = parsedSpecs;
+                    } else {
+                        specs.push(parsedSpecs);
+                    }
+                } catch (e) {
+                    console.error('Error parsing specifications:', e);
+                }
+            } else if (Array.isArray(req.body.specifications)) {
+                req.body.specifications.forEach((s) => {
+                    if (typeof s === 'string') {
+                        specs.push(JSON.parse(s));
+                    } else {
+                        specs.push(s);
+                    }
+                });
+            }
+        }
         req.body.specifications = specs;
+
+        // Parse highlights
+        if (typeof req.body.highlights === 'string') {
+            try {
+                req.body.highlights = JSON.parse(req.body.highlights);
+            } catch (e) {
+                console.error('Error parsing highlights:', e);
+                req.body.highlights = [];
+            }
+        }
+
+        // Convert string numbers to actual numbers
+        if (req.body.price) {
+            req.body.price = Number(req.body.price);
+        }
+        if (req.body.cuttedPrice) {
+            req.body.cuttedPrice = Number(req.body.cuttedPrice);
+        }
+        if (req.body.stock) {
+            req.body.stock = Number(req.body.stock);
+        }
+
+        // Save sku as warranty
+        if (req.body.sku) {
+            req.body.warranty = Number(req.body.sku);
+            delete req.body.sku; // Remove sku from the request body
+        }
 
         const product = await Product.create(req.body);
 
-        // Ensure a valid status code is set here
         return res.status(201).json({
             success: true,
+            message: "Product created successfully",
             product,
         });
     } catch (error) {
         console.error(error);
-        return res.status(500).json({
-            success: false,
-            message: "Server Error",
-        });
+        return next(new ErrorHandler(error.message, 500));
     }
 });
-
 
 
 // create Category ---ADMIN
@@ -213,10 +235,8 @@ exports.createCategory = asyncErrorHandler(async (req, res, next) => {
                 message: "Category with this name already exists",
             });
         }
-        console.log('here')
         let imageLink = [];
         if (req.files.image) {
-            console.log('here1', req.files.image)
             const file = req.files.image;
             const mimeType = file.mimetype;
             const base64Image = `data:${mimeType};base64,${file.data.toString('base64')}`;
@@ -250,18 +270,11 @@ exports.createCategory = asyncErrorHandler(async (req, res, next) => {
         });
     }
 });
-// Get category
-exports.getCategory = asyncErrorHandler(async (req, res, next) => {
-    const category = await Category.find();
-    res.status(200).json({
-        success: true,
-        category,
-    });
-});
 // update category
 exports.updateCategory = asyncErrorHandler(async (req, res, next) => {
     try {
-        const { id, name, image } = req.body;
+
+        const { id, name } = req.body;
 
         const isCategoryExist = await Category.findOne({
             name: name,
@@ -277,8 +290,11 @@ exports.updateCategory = asyncErrorHandler(async (req, res, next) => {
 
         let updatedCategoryData = { name };
 
-        if (image) {
-            const uploadedImage = await cloudinary.uploader.upload(image, {
+        if (req.files.image) {
+            const file = req.files.image;
+            const mimeType = file.mimetype;
+            const base64Image = `data:${mimeType};base64,${file.data.toString('base64')}`;
+            const uploadedImage = await cloudinary.uploader.upload(base64Image, {
                 folder: 'category',
             });
             const category = await Category.findById(id);
@@ -309,6 +325,15 @@ exports.updateCategory = asyncErrorHandler(async (req, res, next) => {
         });
     }
 });
+// Get category
+exports.getCategory = asyncErrorHandler(async (req, res, next) => {
+    const category = await Category.find();
+    res.status(200).json({
+        success: true,
+        category,
+    });
+});
+
 // update category
 exports.toggleCategory = asyncErrorHandler(async (req, res, next) => {
     try {
@@ -348,59 +373,7 @@ exports.getCategoryDetails = asyncErrorHandler(async (req, res, next) => {
     });
 });
 
-exports.getCategoryWiseSubcategory = asyncErrorHandler(async (req, res, next) => {
-    try {
-        const categories = await Category.find();
 
-        if (!categories || categories.length === 0) {
-            return next(new ErrorHandler("Categories Not Found", 404));
-        }
-        const categoryWithSubcategories = await Promise.all(
-            categories.map(async (category) => {
-                const subcategories = await subCategory.find({ category: category._id });
-                return {
-                    category: category,
-                    subcategories: subcategories
-                };
-            })
-        );
-
-        res.status(200).json({
-            success: true,
-            data: categoryWithSubcategories,
-        });
-
-    } catch (error) {
-        console.error(error);
-        return next(new ErrorHandler("Internal Server Error", 500));
-    }
-});
-
-exports.getCategoryAndSubcategoryWiseProducts = asyncErrorHandler(async (req, res, next) => {
-    try {
-        const { category, subCategory } = req.body
-        const isCategoryExist = await Category.find({ _id: category });
-
-        if (!isCategoryExist) {
-            return next(new ErrorHandler("Categories Not Found", 404));
-        }
-        const productWithCategories = await Product.find({ category: category, subcategory: subCategory });
-
-        if (productWithCategories.length === 0) {
-            return res.status(200).json({
-                success: false,
-                message: "No products found for this category."
-            });
-        }
-        return res.status(200).json({
-            success: true,
-            products: productWithCategories
-        });
-    } catch (error) {
-        console.error(error);
-        return next(new ErrorHandler("Internal Server Error", 500));
-    }
-})
 exports.getCategoryWiseProducts = asyncErrorHandler(async (req, res, next) => {
     try {
         const { category } = req.body
@@ -430,241 +403,51 @@ exports.getCategoryWiseProducts = asyncErrorHandler(async (req, res, next) => {
 
 
 exports.deleteCategory = asyncErrorHandler(async (req, res, next) => {
-    const category = await Category.findById(req.params.id);
-
-    console.log(category)
-    if (!category) {
-        return next(new ErrorHandler("Category Not Found", 404));
-    }
-    if (category.image && category.image.length > 0) {
-        for (let i = 0; i < category.image.length; i++) {
-            await cloudinary.v2.uploader.destroy(category.image[i].public_id);
-        }
-    }
-    await category.remove();
-    return res.status(200).json({
-        success: true,
-        message: "Category deleted successfully",
-    });
-})
-
-
-// create Sub Category ---ADMIN
-exports.createSubCategory = asyncErrorHandler(async (req, res, next) => {
     try {
-        const { name, category } = req.body;
-        const categoryExist = await Category.findById(category);
-        if (!categoryExist) {
-            return res.status(404).json({
-                success: false,
-                message: "Category not found",
-            });
-        }
-
-        const checkNameExistCategory = await subCategory.findOne({ name, category });
-        if (checkNameExistCategory) {
-            return res.status(400).json({
-                success: false,
-                message: "Subcategory already exists with this category",
-            });
-        }
-
-        const subcategoryData = {
-            ...req.body,
-        };
-
-        const result = await subCategory.create(subcategoryData);
-        return res.status(201).json({
-            success: true,
-            message: "Subcategory created successfully",
-            result,
-        });
-    } catch (error) {
-        console.error("Error creating subcategory:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Server Error",
-        });
-    }
-});
-// Get category
-exports.getSubCategory = asyncErrorHandler(async (req, res, next) => {
-    const subcategory = await subCategory.find().populate({ path: "category", select: "name" })
-    res.status(200).json({
-        success: true,
-        subcategory,
-    });
-});
-// update subcategory
-exports.updateSubCategory = asyncErrorHandler(async (req, res, next) => {
-    try {
-        const { id, name } = req.body;
-        let result = await subCategory.findById(id);
-        if (!result) {
-            return res.status(404).json({
-                success: false,
-                message: "SubCategory not found",
-            });
-        }
-        const checkNameExistCategory = await subCategory.findOne({
-            name,
-            categoryId: result.category,
-        });
-
-        if (checkNameExistCategory && checkNameExistCategory._id.toString() !== id) {
-            return res.status(400).json({
-                success: false,
-                message: "Subcategory with this name already exists in the same category",
-            });
-        }
-        result.name = name || result.name;
-        await result.save();
-        return res.status(200).json({
-            success: true,
-            result,
-        });
-    } catch (error) {
-        console.error("Error updating subcategory:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Server Error",
-        });
-    }
-});
-// update subcategory
-exports.toggleSubCategory = asyncErrorHandler(async (req, res, next) => {
-    try {
-        const { id } = req.body;
-        const category = await subCategory.findById(id);
-
+        const category = await Category.findById(req.params.id);
         if (!category) {
-            return res.status(200).json({
-                success: false,
-                message: "Category not found",
-            });
+            return next(new ErrorHandler("Category Not Found", 404));
         }
-
-        category.isActive = !category.isActive;
-
-        const updatedCategory = await category.save();
-
+        if (category.image && category.image.length > 0) {
+            for (let i = 0; i < category.image.length; i++) {
+                await cloudinary.v2.uploader.destroy(category.image[i].public_id);
+            }
+        }
+        await category.remove();
         return res.status(200).json({
             success: true,
-            category: updatedCategory,
+            message: "Category deleted successfully",
         });
     } catch (error) {
-        console.error("Error updating category:", error);
+        console.error("Error deleting category:", error);
         return res.status(500).json({
             success: false,
             message: "Server Error",
         });
     }
 })
-exports.getSubcategoryDetails = asyncErrorHandler(async (req, res, next) => {
-    const category = await subCategory.findById(req.params.id).populate({ path: "category", select: "name" });
-    if (!category) {
-        return next(new ErrorHandler("Product Not Found", 404));
-    }
-    res.status(200).json({
-        success: true,
-        category,
-    });
-})
 
-
-
-// Update Product ---ADMIN
-// exports.updateProduct = asyncErrorHandler(async (req, res, next) => {
-//     try {
-//         // return
-//         let product = await Product.findById(req.params.id);
-
-//         if (!product) {
-//             return next(new ErrorHandler("Product Not Found", 404));
-//         }
-
-
-//         if (req.body.images !== undefined) {
-//             let images = [];
-//             if (typeof req.body.images === "string") {
-//                 images.push(req.body.images);
-//             } else {
-//                 images = req.body.images;
-//             }
-//             for (let i = 0; i < product.images.length; i++) {
-//                 await cloudinary.v2.uploader.destroy(product.images[i].public_id);
-//             }
-//             const imagesLink = [];
-
-//             for (let i = 0; i < images.length; i++) {
-//                 const result = await cloudinary.v2.uploader.upload(images[i], {
-//                     folder: "products",
-//                 });
-
-//                 imagesLink.push({
-//                     public_id: result.public_id,
-//                     url: result.secure_url,
-//                 });
-//             }
-//             req.body.images = imagesLink;
-//         }
-
-//         if (req.body.thumbnail.length > 0) {
-//             await cloudinary.v2.uploader.destroy(product.brand.logo.public_id);
-//             const result = await cloudinary.v2.uploader.upload(req.body.logo, {
-//                 folder: "thumbnail",
-//             });
-//             const brandLogo = {
-//                 public_id: result.public_id,
-//                 url: result.secure_url,
-//             };
-
-//             req.body.brand = {
-//                 name: req.body.brandname,
-//                 logo: brandLogo
-//             }
-//         }
-
-//         let specs = [];
-//         req.body.specifications.forEach((s) => {
-//             specs.push(JSON.parse(s))
-//         });
-//         req.body.specifications = specs;
-//         req.body.user = req.user.id;
-
-//         product = await Product.findByIdAndUpdate(req.params.id, req.body, {
-//             new: true,
-//             runValidators: true,
-//             useFindAndModify: false,
-//         });
-
-//         res.status(201).json({
-//             success: true,
-//             product
-//         });
-//     } catch (error) {
-//         console.log(error)
-//     }
-// });
 
 exports.updateProduct = asyncErrorHandler(async (req, res, next) => {
     try {
+        console.log("body", req.body)
 
-        let product = await Product.findById(req.body.id);
+        let product = await Product.findById(req.params.id);
 
         if (!product) {
-            return next(new ErrorHandler("Product Not Found", 200));
+            return next(new ErrorHandler("Product Not Found", 404));
         }
 
         // Handle image uploads
-        // const imagesLink = [];
-        if (req.body.images !== undefined) {
+        if (req.files && req.files.images) {
             let images = [];
-            if (typeof req.body.images === "string") {
-                images.push(req.body.images);
+            if (typeof req.files.images === "string") {
+                images.push(req.files.images);
             } else {
-                images = req.body.images;
+                images = req.files.images;
             }
+
+            // Delete existing images from cloudinary
             for (let i = 0; i < product?.images?.length; i++) {
                 await cloudinary.v2.uploader.destroy(product?.images[i]?.public_id);
             }
@@ -672,10 +455,12 @@ exports.updateProduct = asyncErrorHandler(async (req, res, next) => {
             const imagesLink = [];
 
             for (let i = 0; i < images?.length; i++) {
-                const result = await cloudinary.v2.uploader.upload(images[i], {
+                const file = images[i];
+                const mimeType = file.mimetype;
+                const base64Image = `data:${mimeType};base64,${file.data.toString('base64')}`;
+                const result = await cloudinary.v2.uploader.upload(base64Image, {
                     folder: "products",
                 });
-
 
                 imagesLink.push({
                     public_id: result.public_id,
@@ -685,9 +470,17 @@ exports.updateProduct = asyncErrorHandler(async (req, res, next) => {
             req.body.images = imagesLink;
         }
 
-        if (req.body.thumbnail > 0) {
-            await cloudinary?.v2?.uploader?.destroy(product?.brand?.thumbnail?.public_id);
-            const result = await cloudinary?.v2?.uploader?.upload(req.body.thumbnail, {
+        // Handle thumbnail upload - Fixed condition
+        if (req.files && req.files.thumbnail) {
+            // Delete existing thumbnail if it exists
+            if (product?.brand?.logo?.public_id) {
+                await cloudinary?.v2?.uploader?.destroy(product?.brand?.logo?.public_id);
+            }
+
+            const file = req.files.thumbnail;
+            const mimeType = file.mimetype;
+            const base64Image = `data:${mimeType};base64,${file.data.toString('base64')}`;
+            const result = await cloudinary.v2.uploader.upload(base64Image, {
                 folder: "thumbnail",
             });
 
@@ -697,33 +490,82 @@ exports.updateProduct = asyncErrorHandler(async (req, res, next) => {
             };
 
             req.body.brand = {
-                name: req.body.brandname,
+                name: req.body.brandname || (product.brand && product.brand.name), // Fixed: use req.body.brandname
                 logo: brandLogo
             }
         }
 
+        // Handle specifications parsing
+        if (typeof req.body.specifications === 'string') {
+            try {
+                req.body.specifications = JSON.parse(req.body.specifications);
+            } catch (e) {
+                req.body.specifications = [];
+            }
+        }
 
-        // req.body.images = imagesLink;
-        // req.body.user = req.user.id;
-        // req.body.user = req.body.user
-        // console.log(req.body.brandname)
+        if (typeof req.body.highlights === 'string') {
+            try {
+                req.body.highlights = JSON.parse(req.body.highlights);
+            } catch (e) {
+                req.body.highlights = [];
+            }
+        }
 
         let specs = [];
-        req.body.specifications.forEach((s) => {
-            specs.push(JSON.parse(s));
-        });
+        if (Array.isArray(req.body.specifications)) {
+            req.body.specifications.forEach((s) => {
+                specs.push(typeof s === 'string' ? JSON.parse(s) : s);
+            });
+        } else if (typeof req.body.specifications === 'string') {
+            specs.push(JSON.parse(req.body.specifications));
+        } else if (typeof req.body.specifications === 'object' && req.body.specifications !== null) {
+            specs.push(req.body.specifications);
+        }
         req.body.specifications = specs;
-        req.body.user = req.body.id
 
-        // console.log(req.body.id)
-        // return
-        product = await Product.findByIdAndUpdate(req.body.id, req.body, {
+        // Handle images from request body (when updating without file upload)
+        if (req.body.images && typeof req.body.images === 'string') {
+            try {
+                let parsedImages = JSON.parse(req.body.images);
+
+                // Extract public_id from cloudinary URLs if not provided
+                req.body.images = parsedImages.map(imageUrl => {
+                    if (typeof imageUrl === 'string') {
+                        // Extract public_id from cloudinary URL
+                        const urlParts = imageUrl.split('/');
+                        const fileName = urlParts[urlParts.length - 1];
+                        const publicId = fileName.split('.')[0];
+
+                        return {
+                            public_id: `products/${publicId}`, // Assuming images are in 'products' folder
+                            url: imageUrl
+                        };
+                    } else if (imageUrl && typeof imageUrl === 'object') {
+                        return {
+                            public_id: imageUrl.public_id || "",
+                            url: imageUrl.url || ""
+                        };
+                    }
+                    return { public_id: "", url: "" };
+                });
+            } catch (e) {
+                console.error('Error parsing images:', e);
+                // Keep existing images if parsing fails
+                delete req.body.images;
+            }
+        }
+
+        // Set user ID
+        req.body.user = req.user.id; // Fixed: should be req.user.id, not req.params.id
+
+        product = await Product.findByIdAndUpdate(req.params.id, req.body, {
             new: true,
             runValidators: true,
             useFindAndModify: false,
         });
 
-        res.status(201).json({
+        res.status(200).json({
             success: true,
             message: "Product updated successfully",
             product
@@ -738,7 +580,10 @@ exports.updateProduct = asyncErrorHandler(async (req, res, next) => {
 // Delete Product ---ADMIN
 exports.deleteProduct = asyncErrorHandler(async (req, res, next) => {
 
+    console.log(req.params.id)
+
     const product = await Product.findById(req.params.id);
+    console.log(product)
 
     if (!product) {
         return next(new ErrorHandler("Product Not Found", 404));
